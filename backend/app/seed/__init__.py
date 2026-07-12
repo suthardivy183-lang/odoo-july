@@ -37,8 +37,11 @@ from app.models.enums import (
     Severity,
 )
 from app.models.environment import CarbonTransaction, ERPOperation, ERPOperationLine
+from app.models.carbon_accounting import PricingMethod, CarbonPricingRule, DepartmentCarbonBudget
+from app.services.carbon_accounting import calculate_and_create_carbon_cost
 from app.models.gamification import Challenge, ChallengeParticipation, XPTransaction
 from app.models.governance import Audit, ComplianceIssue
+
 from app.models.masterdata import (
     Badge,
     Category,
@@ -565,6 +568,79 @@ def spread_xp_dates(db: Session) -> None:
     db.flush()
 
 
+def seed_carbon_accounting(db: Session, depts: dict, admin_user: User) -> None:
+    # 1. Create a default active Carbon Pricing Rule
+    pricing_rule = CarbonPricingRule(
+        price_per_ton=3500.0,
+        currency="INR",
+        effective_date=dt.date(2026, 4, 1),
+        pricing_method=PricingMethod.fixed_internal,
+        is_active=True,
+        version=1,
+        created_by=admin_user.id,
+    )
+    db.add(pricing_rule)
+    db.flush()
+
+    # 2. Seed department budgets
+    for name, dept in depts.items():
+        if "Manufacturing" in name:
+            annual_limit = 150.0
+        elif "Operations" in name:
+            annual_limit = 100.0
+        elif "Corporate" in name:
+            annual_limit = 50.0
+        elif "Logistics" in name:
+            annual_limit = 80.0
+        else:
+            annual_limit = 30.0
+
+        # Annual budget
+        annual_budget = DepartmentCarbonBudget(
+            department_id=dept.id,
+            fiscal_year="2026-2027",
+            period_type="annual",
+            period_value=None,
+            budgeted_co2e_tons=annual_limit,
+            start_date=dt.date(2026, 4, 1),
+            end_date=dt.date(2027, 3, 31),
+            created_by=admin_user.id,
+        )
+        db.add(annual_budget)
+
+        # Q1 Budget
+        q1_budget = DepartmentCarbonBudget(
+            department_id=dept.id,
+            fiscal_year="2026-2027",
+            period_type="quarterly",
+            period_value="Q1",
+            budgeted_co2e_tons=round(annual_limit / 4.0, 2),
+            start_date=dt.date(2026, 4, 1),
+            end_date=dt.date(2026, 6, 30),
+            created_by=admin_user.id,
+        )
+        # Q2 Budget
+        q2_budget = DepartmentCarbonBudget(
+            department_id=dept.id,
+            fiscal_year="2026-2027",
+            period_type="quarterly",
+            period_value="Q2",
+            budgeted_co2e_tons=round(annual_limit / 4.0, 2),
+            start_date=dt.date(2026, 7, 1),
+            end_date=dt.date(2026, 9, 30),
+            created_by=admin_user.id,
+        )
+        db.add_all([q1_budget, q2_budget])
+
+    db.flush()
+
+    # 3. Pre-calculate costs for all seeded transactions
+    txs = db.query(CarbonTransaction).all()
+    for tx in txs:
+        calculate_and_create_carbon_cost(db, tx)
+    db.flush()
+
+
 def run() -> None:
     print("EcoSphere seed: wiping schema...")
     Base.metadata.drop_all(bind=engine)
@@ -590,7 +666,9 @@ def run() -> None:
         print(f"  automatic badges awarded: {awarded}")
         seed_governance(db, depts, demo)
         spread_xp_dates(db)
+        seed_carbon_accounting(db, depts, demo["admin"])
         db.commit()
+
         print("Seed complete.\n")
         print("Demo accounts (password for all: %s)" % data.DEMO_PASSWORD)
         print("  Admin        admin@ecosphere.in")

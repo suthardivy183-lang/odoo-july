@@ -76,3 +76,7 @@ class CarbonTransaction(TimestampMixin, Base):
     department = relationship("Department")
     emission_factor = relationship("EmissionFactor")
     creator = relationship("User")
+    carbon_cost_entry = relationship(
+        "CarbonCostEntry", back_populates="carbon_transaction", uselist=False, cascade="all, delete-orphan"
+    )
+
