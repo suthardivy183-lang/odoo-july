@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* EcoSphere theme: green / white / dark gray */
+@layer base {
+  :root {
+    --background: 140 20% 98%;
+    --foreground: 220 15% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 14%;
+    --primary: 152 65% 30%;
+    --primary-foreground: 140 30% 98%;
+    --secondary: 150 25% 94%;
+    --secondary-foreground: 152 45% 20%;
+    --muted: 150 15% 94%;
+    --muted-foreground: 220 10% 42%;
+    --accent: 152 55% 92%;
+    --accent-foreground: 152 65% 22%;
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 150 12% 88%;
+    --input: 150 12% 84%;
+    --ring: 152 65% 30%;
+    --radius: 0.625rem;
+    --sidebar: 160 30% 10%;
+    --sidebar-foreground: 150 15% 88%;
+  }
+  .dark {
+    --background: 220 16% 9%;
+    --foreground: 150 10% 92%;
+    --card: 220 14% 12%;
+    --card-foreground: 150 10% 92%;
+    --popover: 220 14% 12%;
+    --popover-foreground: 150 10% 92%;
+    --primary: 152 55% 45%;
+    --primary-foreground: 160 40% 8%;
+    --secondary: 220 12% 17%;
+    --secondary-foreground: 150 10% 88%;
+    --muted: 220 12% 16%;
+    --muted-foreground: 220 8% 60%;
+    --accent: 152 40% 18%;
+    --accent-foreground: 152 50% 80%;
+    --destructive: 0 62% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 10% 20%;
+    --input: 220 10% 24%;
+    --ring: 152 55% 45%;
+    --sidebar: 222 18% 7%;
+    --sidebar-foreground: 150 12% 85%;
+  }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  html {
+    scrollbar-gutter: stable;
+  }
+}
