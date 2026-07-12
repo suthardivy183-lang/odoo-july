@@ -96,7 +96,9 @@ class DepartmentUserApiTestCase(unittest.TestCase):
         return {"Authorization": f"Bearer {token}"}
 
     def test_department_tree_includes_nested_active_employee_counts(self):
-        response = self.client.get("/api/v1/departments/tree", headers=self.employee_headers)
+        response = self.client.get(
+            "/api/v1/departments/tree", headers=self.employee_headers
+        )
 
         self.assertEqual(response.status_code, 200, response.text)
         tree = response.json()
@@ -125,7 +127,11 @@ class DepartmentUserApiTestCase(unittest.TestCase):
         response = self.client.post(
             "/api/v1/departments",
             headers=self.admin_headers,
-            json={"name": "Sustainability", "head_user_id": spare_head_id, "parent_id": self.root_id},
+            json={
+                "name": "Sustainability",
+                "head_user_id": spare_head_id,
+                "parent_id": self.root_id,
+            },
         )
 
         self.assertEqual(response.status_code, 201, response.text)
@@ -177,7 +183,9 @@ class DepartmentUserApiTestCase(unittest.TestCase):
         self.assertEqual(deleted.status_code, 200, deleted.text)
         self.assertEqual(deleted.json()["status"], ActiveStatus.inactive.value)
         with self.Session() as db:
-            self.assertEqual(db.get(Department, self.child_id).status, ActiveStatus.inactive)
+            self.assertEqual(
+                db.get(Department, self.child_id).status, ActiveStatus.inactive
+            )
 
     def test_admin_can_create_user_with_normalized_identity_and_audit_entry(self):
         response = self.client.post(
@@ -213,7 +221,9 @@ class DepartmentUserApiTestCase(unittest.TestCase):
             ).scalar_one()
             self.assertNotIn("password_hash", audit.after_json)
 
-    def test_user_create_rejects_duplicate_email_and_employee_code_case_insensitively(self):
+    def test_user_create_rejects_duplicate_email_and_employee_code_case_insensitively(
+        self,
+    ):
         duplicate_email = self.client.post(
             "/api/v1/users",
             headers=self.admin_headers,
@@ -276,7 +286,11 @@ class DepartmentUserApiTestCase(unittest.TestCase):
         self.assertEqual(deactivated.status_code, 200, deactivated.text)
         self.assertFalse(deactivated.json()["is_active"])
         with self.Session() as db:
-            self.assertTrue(verify_password("ResetPass123", db.get(User, self.employee_id).password_hash))
+            self.assertTrue(
+                verify_password(
+                    "ResetPass123", db.get(User, self.employee_id).password_hash
+                )
+            )
 
     def test_admin_cannot_deactivate_self_or_an_assigned_department_head(self):
         self_deactivate = self.client.delete(

@@ -1,0 +1,2 @@
+# FastAPI/Starlette's synchronous TestClient dependency.
+httpx2>=2.5,<3
