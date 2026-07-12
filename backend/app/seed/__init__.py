@@ -1038,6 +1038,61 @@ def seed_risk_heatmap(db: Session, depts: dict) -> None:
 
 
 
+def seed_score_history(db: Session, depts: dict) -> None:
+    """Backfill ~6 months of FY ESG-score snapshots that drift up to today's
+    real engine-computed score, then write today's live snapshot with full
+    component breakdowns. Gives the Mission Control trend line real history at
+    first paint."""
+    from app.models.scores import DepartmentScoreSnapshot, OrgScoreSnapshot
+    from app.services import score_engine
+    from app.utils.time import resolve_period
+
+    today = today_ist()
+    start, end = resolve_period("fy")
+    org = score_engine.compute_org_score(db, start, end)
+    if org.dept_count == 0:
+        return
+
+    months = []
+    year, month = today.year, today.month
+    for _ in range(6):
+        month -= 1
+        if month == 0:
+            year, month = year - 1, 12
+        months.append((year, month))
+    months.reverse()
+
+    def clamp(v):
+        return None if v is None else max(0.0, min(100.0, v))
+
+    for i, (y, m) in enumerate(months):
+        offset = (len(months) - i) * 2.0  # older months sit further below today
+        snap_date = dt.date(y, m, 28)
+        db.add(OrgScoreSnapshot(
+            snapshot_date=snap_date,
+            period_type="fy",
+            environmental_score=clamp(None if org.environmental is None else org.environmental - offset),
+            social_score=clamp(None if org.social is None else org.social - offset),
+            governance_score=clamp(None if org.governance is None else org.governance - offset),
+            total_score=clamp(org.total - offset),
+            dept_count=org.dept_count,
+        ))
+        for d in org.departments:
+            db.add(DepartmentScoreSnapshot(
+                department_id=d.department_id,
+                snapshot_date=snap_date,
+                period_type="fy",
+                environmental_score=clamp(None if d.environmental is None else d.environmental - offset),
+                social_score=clamp(None if d.social is None else d.social - offset),
+                governance_score=clamp(None if d.governance is None else d.governance - offset),
+                total_score=clamp(d.total - offset),
+                components_json=None,
+            ))
+    db.flush()
+    score_engine.snapshot_scores(db)  # today's real snapshot (with components)
+    db.flush()
+
+
 def run() -> None:
     print("EcoSphere seed: wiping schema...")
     Base.metadata.drop_all(bind=engine)
@@ -1069,6 +1124,7 @@ def run() -> None:
         spread_xp_dates(db)
         seed_carbon_accounting(db, depts, demo["admin"])
         seed_risk_heatmap(db, depts)
+        seed_score_history(db, depts)
         db.commit()
 
 

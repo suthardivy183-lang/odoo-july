@@ -247,8 +247,72 @@ export interface DigitalTwinScenario {
   period: "month" | "quarter" | "fy" | "all";
 }
 
+export type ScorePeriod = "month" | "quarter" | "fy" | "all";
+
+export interface ScoreComponent {
+  key: string;
+  label: string;
+  value: number | null;
+  inputs: Record<string, number | string>;
+}
+
+export interface DeptScore {
+  department_id: number;
+  department_name: string;
+  employee_count: number;
+  environmental: number | null;
+  social: number | null;
+  governance: number | null;
+  total: number | null;
+  components: ScoreComponent[];
+}
+
+export interface ScoreTrendPoint {
+  snapshot_date: string;
+  total_score: number;
+  environmental_score: number | null;
+  social_score: number | null;
+  governance_score: number | null;
+}
+
+export interface OrgScore {
+  period: ScorePeriod;
+  period_start: string;
+  period_end: string;
+  total: number | null;
+  grade: string;
+  environmental: number | null;
+  social: number | null;
+  governance: number | null;
+  dept_count: number;
+  weights: { environmental: number; social: number; governance: number };
+  top_departments: DeptScore[];
+  bottom_departments: DeptScore[];
+  trend: ScoreTrendPoint[];
+}
+
+export interface DeptScoreDetail {
+  period: ScorePeriod;
+  period_start: string;
+  period_end: string;
+  grade: string;
+  department: DeptScore;
+  trend: ScoreTrendPoint[];
+}
+
+export interface DomainEventOut {
+  id: number;
+  type: string;
+  department_id: number | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface DigitalTwinResult {
   data_source: "live_ledger" | "planning_baseline" | "demo_baseline";
+  baseline_source?: "computed_score" | "advisory_input";
   period_start: string;
   period_end: string;
   current_esg_score: number;

@@ -1,21 +1,176 @@
-from fastapi import APIRouter, Depends
+import datetime as dt
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.deps import require_esg
+from app.core.deps import get_current_user, require_esg
 from app.db.session import get_db
 from app.models.core import User
-from app.models.enums import Scope
+from app.models.enums import Role, Scope
 from app.models.environment import CarbonTransaction
+from app.models.scores import DepartmentScoreSnapshot, OrgScoreSnapshot
 from app.schemas.scores import (
+    DeptScoreDetailOut,
+    DeptScoreOut,
     DigitalTwinBreakdownOut,
     DigitalTwinProjectionOut,
     DigitalTwinScenarioIn,
     DigitalTwinScenarioOut,
+    OrgScoreOut,
+    ScoreTrendPoint,
+    WeightsOut,
 )
+from app.services import score_engine
+from app.services.org import managed_dept_ids
+from app.services.org_settings import get_org_settings
 from app.utils.time import resolve_period
 
 router = APIRouter(tags=["Scores"])
+
+
+def esg_grade(total: float | None) -> str:
+    """Letter band for an ESG score. Higher score = better = safer band."""
+    if total is None:
+        return "—"
+    if total >= 80:
+        return "A"
+    if total >= 65:
+        return "B"
+    if total >= 50:
+        return "C"
+    if total >= 35:
+        return "D"
+    return "E"
+
+
+def _dept_out(dept: score_engine.DeptScore) -> DeptScoreOut:
+    return DeptScoreOut(**dept.as_dict())
+
+
+def _org_trend(db: Session, period_type: str = "fy") -> list[ScoreTrendPoint]:
+    rows = db.execute(
+        select(OrgScoreSnapshot)
+        .where(OrgScoreSnapshot.period_type == period_type)
+        .order_by(OrgScoreSnapshot.snapshot_date.asc())
+    ).scalars().all()
+    return [ScoreTrendPoint.model_validate(r) for r in rows]
+
+# --- ESG SCORE ENGINE ENDPOINTS ---
+
+
+@router.get("/scores/weights", response_model=WeightsOut)
+def get_score_weights(
+    _current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    s = get_org_settings(db)
+    return WeightsOut(
+        environmental=float(s.weight_env),
+        social=float(s.weight_social),
+        governance=float(s.weight_gov),
+    )
+
+
+@router.get("/scores/organization", response_model=OrgScoreOut)
+def get_organization_score(
+    period: str = Query("fy", pattern="^(month|quarter|fy|all)$"),
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+    _current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    org, start, end = score_engine.compute_period(db, period, date_from, date_to)
+    ranked = [_dept_out(d) for d in org.departments]  # already sorted desc by total
+    return OrgScoreOut(
+        period=period,
+        period_start=start,
+        period_end=end,
+        total=score_engine._r(org.total) if org.dept_count else None,
+        grade=esg_grade(org.total if org.dept_count else None),
+        environmental=score_engine._r(org.environmental),
+        social=score_engine._r(org.social),
+        governance=score_engine._r(org.governance),
+        dept_count=org.dept_count,
+        weights=score_engine._weights(db),
+        top_departments=ranked[:3],
+        bottom_departments=ranked[-3:][::-1] if len(ranked) > 3 else [],
+        trend=_org_trend(db),
+    )
+
+
+@router.get("/scores/departments", response_model=list[DeptScoreOut])
+def list_department_scores(
+    period: str = Query("fy", pattern="^(month|quarter|fy|all)$"),
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    start, end = resolve_period(period, date_from, date_to)
+    depts = score_engine.compute_all_departments(db, start, end)
+    ordered = sorted(depts.values(), key=lambda d: d.total, reverse=True)
+    if current.role not in (Role.admin, Role.esg_manager):
+        allowed = managed_dept_ids(db, current)
+        if current.department_id is not None:
+            allowed = allowed | {current.department_id}
+        ordered = [d for d in ordered if d.department_id in allowed]
+    return [_dept_out(d) for d in ordered]
+
+
+@router.get("/scores/departments/{department_id}", response_model=DeptScoreDetailOut)
+def get_department_score(
+    department_id: int,
+    period: str = Query("fy", pattern="^(month|quarter|fy|all)$"),
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current.role not in (Role.admin, Role.esg_manager):
+        allowed = managed_dept_ids(db, current)
+        if current.department_id is not None:
+            allowed = allowed | {current.department_id}
+        if department_id not in allowed:
+            raise HTTPException(status_code=403, detail="Not permitted to view this department")
+
+    start, end = resolve_period(period, date_from, date_to)
+    depts = score_engine.compute_all_departments(db, start, end)
+    dept = depts.get(department_id)
+    if dept is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Department has no active employees to score for this period",
+        )
+    trend = db.execute(
+        select(DepartmentScoreSnapshot)
+        .where(
+            DepartmentScoreSnapshot.department_id == department_id,
+            DepartmentScoreSnapshot.period_type == "fy",
+        )
+        .order_by(DepartmentScoreSnapshot.snapshot_date.asc())
+    ).scalars().all()
+    return DeptScoreDetailOut(
+        period=period,
+        period_start=start,
+        period_end=end,
+        grade=esg_grade(dept.total),
+        department=_dept_out(dept),
+        trend=[ScoreTrendPoint.model_validate(r) for r in trend],
+    )
+
+
+@router.post("/scores/recalculate", response_model=OrgScoreOut)
+def recalculate_scores(
+    period: str = Query("fy", pattern="^(month|quarter|fy|all)$"),
+    current: User = Depends(require_esg),
+    db: Session = Depends(get_db),
+):
+    """Recompute and snapshot today's scores now (demo insurance)."""
+    score_engine.snapshot_scores(db)
+    db.commit()
+    return get_organization_score(period=period, _current=current, db=db)
+
 
 DEMO_CARBON_KG = 1_000_000.0
 EV_AVOIDED_EMISSIONS_RATE = 0.90
@@ -136,6 +291,16 @@ def simulate_digital_twin(
     start_date, end_date = resolve_period(
         payload.period, payload.date_from, payload.date_to
     )
+    # Baseline ESG score is derived server-side from the live scoring engine;
+    # the client-supplied current_esg_score is only an advisory fallback used
+    # when the organization has no scoreable data yet.
+    org = score_engine.compute_org_score(db, start_date, end_date)
+    if org.dept_count > 0:
+        baseline_score = org.total
+        baseline_source = "computed_score"
+    else:
+        baseline_score = payload.current_esg_score
+        baseline_source = "advisory_input"
     ledger, has_live_data = _ledger_by_scope(db, start_date, end_date)
     live_total = sum(ledger.values())
     use_live_baseline = has_live_data and live_total >= DEMO_CARBON_KG
@@ -158,7 +323,7 @@ def simulate_digital_twin(
     reduction_pct = reduction / current_carbon * 100
     scenario_carbon = max(current_carbon - reduction, 0)
     scenario_score = min(
-        payload.current_esg_score + reduction_pct * SCORE_POINTS_PER_REDUCTION_PCT,
+        baseline_score + reduction_pct * SCORE_POINTS_PER_REDUCTION_PCT,
         100,
     )
     annual_savings = reduction * SAVINGS_INR_PER_KG_AVOIDED
@@ -177,11 +342,12 @@ def simulate_digital_twin(
     ]
     return DigitalTwinScenarioOut(
         data_source=data_source,
+        baseline_source=baseline_source,
         period_start=start_date,
         period_end=end_date,
-        current_esg_score=_round(payload.current_esg_score),
+        current_esg_score=_round(baseline_score),
         scenario_esg_score=_round(scenario_score),
-        score_uplift=_round(scenario_score - payload.current_esg_score),
+        score_uplift=_round(scenario_score - baseline_score),
         current_carbon_kg=_round(current_carbon),
         scenario_carbon_kg=_round(scenario_carbon),
         carbon_reduction_kg=_round(reduction),
@@ -191,6 +357,11 @@ def simulate_digital_twin(
         breakdown=breakdown,
         projection=projection,
         methodology=[
+            (
+                "Baseline ESG score is the live engine-computed organization score."
+                if baseline_source == "computed_score"
+                else "No scoreable data yet, so the baseline ESG score uses the advisory input value."
+            ),
             (
                 "The current ledger is below the 1,000-tonne annual completeness threshold, so this run uses the disclosed annual planning baseline."
                 if data_source == "planning_baseline"
