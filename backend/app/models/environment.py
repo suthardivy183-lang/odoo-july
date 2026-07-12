@@ -40,7 +40,9 @@ class ERPOperationLine(Base):
     __tablename__ = "erp_operation_lines"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    operation_id: Mapped[int] = mapped_column(ForeignKey("erp_operations.id"), index=True)
+    operation_id: Mapped[int] = mapped_column(
+        ForeignKey("erp_operations.id"), index=True
+    )
     resource: Mapped[str] = mapped_column(String(120))
     quantity: Mapped[float] = mapped_column(Numeric(14, 3))
     unit: Mapped[str] = mapped_column(String(20))
@@ -76,3 +78,9 @@ class CarbonTransaction(TimestampMixin, Base):
     department = relationship("Department")
     emission_factor = relationship("EmissionFactor")
     creator = relationship("User")
+    carbon_cost_entry = relationship(
+        "CarbonCostEntry",
+        back_populates="carbon_transaction",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

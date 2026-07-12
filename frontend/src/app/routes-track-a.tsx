@@ -1,6 +1,7 @@
 import type { RouteObject } from "react-router-dom";
 
 import { RequireRole } from "@/app/require-role";
+import { CarbonAccountingPage } from "@/features/carbon-accounting/carbon-accounting-page";
 import { DigitalTwinPage } from "@/features/digital-twin/digital-twin-page";
 
 /**
@@ -17,4 +18,5 @@ export const routesTrackA: RouteObject[] = [
       </RequireRole>
     ),
   },
+  { path: "carbon-accounting", element: <CarbonAccountingPage /> },
 ];

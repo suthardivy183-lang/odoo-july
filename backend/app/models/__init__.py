@@ -29,3 +29,9 @@ from app.models.masterdata import (
     UserBadge,
 )
 from app.models.social import CSRActivity, CSRParticipation
+from app.models.carbon_accounting import (
+    PricingMethod,
+    CarbonPricingRule,
+    CarbonCostEntry,
+    DepartmentCarbonBudget,
+)
