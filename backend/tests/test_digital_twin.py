@@ -1,7 +1,7 @@
 import unittest
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, delete
+from sqlalchemy import create_engine, delete, update
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -151,6 +151,23 @@ class DigitalTwinApiTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["data_source"], "demo_baseline")
         self.assertEqual(response.json()["current_carbon_kg"], 1_000_000)
+
+    def test_incomplete_ledger_uses_disclosed_annual_planning_baseline(self):
+        with self.Session() as db:
+            db.execute(update(CarbonTransaction).values(co2e_kg=1_000))
+            db.commit()
+
+        response = self.client.post(
+            "/api/v1/scores/simulate",
+            headers=self.admin_headers,
+            json={},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["data_source"], "planning_baseline")
+        self.assertEqual(response.json()["current_carbon_kg"], 1_000_000)
+        self.assertEqual(response.json()["scenario_esg_score"], 80.7)
+        self.assertEqual(response.json()["annual_savings_lakh"], 31.3)
 
     def test_employee_cannot_run_decision_simulation(self):
         response = self.client.post(
