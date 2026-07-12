@@ -2,7 +2,11 @@ import datetime as dt
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.carbon_accounting import CarbonCostEntry, CarbonPricingRule, DepartmentCarbonBudget
+from app.models.carbon_accounting import (
+    CarbonCostEntry,
+    CarbonPricingRule,
+    DepartmentCarbonBudget,
+)
 from app.models.environment import CarbonTransaction
 
 
@@ -58,24 +62,32 @@ def get_department_budget_utilization(
     # We include all sub-departments or just the department?
     # Usually, a budget is for the department itself.
     # Let's aggregate for the department itself first.
-    emissions_sum = db.execute(
-        select(func.sum(CarbonTransaction.co2e_kg))
-        .where(
-            CarbonTransaction.department_id == department_id,
-            CarbonTransaction.activity_date >= start_date,
-            CarbonTransaction.activity_date <= end_date,
-        )
-    ).scalar_one() or 0.0
+    emissions_sum = (
+        db.execute(
+            select(func.sum(CarbonTransaction.co2e_kg)).where(
+                CarbonTransaction.department_id == department_id,
+                CarbonTransaction.activity_date >= start_date,
+                CarbonTransaction.activity_date <= end_date,
+            )
+        ).scalar_one()
+        or 0.0
+    )
 
-    liability_sum = db.execute(
-        select(func.sum(CarbonCostEntry.financial_liability))
-        .join(CarbonTransaction, CarbonCostEntry.carbon_transaction_id == CarbonTransaction.id)
-        .where(
-            CarbonTransaction.department_id == department_id,
-            CarbonTransaction.activity_date >= start_date,
-            CarbonTransaction.activity_date <= end_date,
-        )
-    ).scalar_one() or 0.0
+    liability_sum = (
+        db.execute(
+            select(func.sum(CarbonCostEntry.financial_liability))
+            .join(
+                CarbonTransaction,
+                CarbonCostEntry.carbon_transaction_id == CarbonTransaction.id,
+            )
+            .where(
+                CarbonTransaction.department_id == department_id,
+                CarbonTransaction.activity_date >= start_date,
+                CarbonTransaction.activity_date <= end_date,
+            )
+        ).scalar_one()
+        or 0.0
+    )
 
     return {
         "actual_co2e_kg": float(emissions_sum),

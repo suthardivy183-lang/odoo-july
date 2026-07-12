@@ -12,7 +12,12 @@ from app.main import app
 from app.models.core import Department, User
 from app.models.enums import ActiveStatus, Gender, Role, Scope
 from app.models.masterdata import EmissionFactor
-from app.models.carbon_accounting import CarbonPricingRule, CarbonCostEntry, DepartmentCarbonBudget, PricingMethod
+from app.models.carbon_accounting import (
+    CarbonPricingRule,
+    CarbonCostEntry,
+    DepartmentCarbonBudget,
+    PricingMethod,
+)
 from app.models.environment import CarbonTransaction
 
 
@@ -109,7 +114,9 @@ class CarbonAccountingApiTestCase(unittest.TestCase):
             "pricing_method": "fixed_internal",
             "is_active": True,
         }
-        res = self.client.post("/api/v1/carbon/pricing-rules", json=payload, headers=self.esg_headers)
+        res = self.client.post(
+            "/api/v1/carbon/pricing-rules", json=payload, headers=self.esg_headers
+        )
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertEqual(data["price_per_ton"], 3500.0)
@@ -129,7 +136,9 @@ class CarbonAccountingApiTestCase(unittest.TestCase):
             "pricing_method": "govt_tax",
             "is_active": True,
         }
-        res = self.client.post("/api/v1/carbon/pricing-rules", json=payload, headers=self.esg_headers)
+        res = self.client.post(
+            "/api/v1/carbon/pricing-rules", json=payload, headers=self.esg_headers
+        )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["version"], 2)
 
@@ -164,14 +173,20 @@ class CarbonAccountingApiTestCase(unittest.TestCase):
             "emission_factor_id": self.factor_id,
             "notes": "Test notes",
         }
-        res = self.client.post("/api/v1/carbon/transactions", json=payload, headers=self.esg_headers)
+        res = self.client.post(
+            "/api/v1/carbon/transactions", json=payload, headers=self.esg_headers
+        )
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertEqual(data["co2e_kg"], 268.0)  # 100 * 2.68
 
         # Verify cost entry was created
         with self.Session() as db:
-            cost = db.execute(select(CarbonCostEntry).where(CarbonCostEntry.carbon_transaction_id == data["id"])).scalar_one()
+            cost = db.execute(
+                select(CarbonCostEntry).where(
+                    CarbonCostEntry.carbon_transaction_id == data["id"]
+                )
+            ).scalar_one()
             self.assertEqual(float(cost.price_per_ton_used), 4000.0)
             self.assertEqual(float(cost.co2e_kg), 268.0)
             # 268kg = 0.268 tons * 4000 = 1072.0
@@ -188,7 +203,9 @@ class CarbonAccountingApiTestCase(unittest.TestCase):
             "start_date": "2026-04-01",
             "end_date": "2027-03-31",
         }
-        res = self.client.post("/api/v1/carbon/budgets", json=payload, headers=self.admin_headers)
+        res = self.client.post(
+            "/api/v1/carbon/budgets", json=payload, headers=self.admin_headers
+        )
         self.assertEqual(res.status_code, 200)
 
         # Create a transaction
@@ -217,7 +234,7 @@ class CarbonAccountingApiTestCase(unittest.TestCase):
             )
             db.add(tx)
             db.flush()
-            
+
             # calculate cost
             cost = CarbonCostEntry(
                 carbon_transaction_id=tx.id,
@@ -262,7 +279,9 @@ class CarbonAccountingApiTestCase(unittest.TestCase):
             "fleet_ev_pct": 0.0,
             "solar_replacement_pct": 0.0,
         }
-        res = self.client.post("/api/v1/carbon/accounting/simulate", json=payload, headers=self.esg_headers)
+        res = self.client.post(
+            "/api/v1/carbon/accounting/simulate", json=payload, headers=self.esg_headers
+        )
         self.assertEqual(res.status_code, 200)
         data = res.json()
         # 20% of 2.68 tons = 0.536 tons (rounds to 0.54)
@@ -271,17 +290,31 @@ class CarbonAccountingApiTestCase(unittest.TestCase):
 
     def test_reports_generation(self):
         # Test CSV export
-        res = self.client.get("/api/v1/carbon/accounting/reports?report_type=monthly_cost&file_format=csv", headers=self.esg_headers)
+        res = self.client.get(
+            "/api/v1/carbon/accounting/reports?report_type=monthly_cost&file_format=csv",
+            headers=self.esg_headers,
+        )
         self.assertEqual(res.status_code, 200)
         self.assertIn("text/csv", res.headers["content-type"])
-        self.assertIn("attachment; filename=monthly_cost.csv", res.headers["content-disposition"])
+        self.assertIn(
+            "attachment; filename=monthly_cost.csv", res.headers["content-disposition"]
+        )
 
         # Test Excel export
-        res = self.client.get("/api/v1/carbon/accounting/reports?report_type=monthly_cost&file_format=excel", headers=self.esg_headers)
+        res = self.client.get(
+            "/api/v1/carbon/accounting/reports?report_type=monthly_cost&file_format=excel",
+            headers=self.esg_headers,
+        )
         self.assertEqual(res.status_code, 200)
-        self.assertIn("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", res.headers["content-type"])
+        self.assertIn(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            res.headers["content-type"],
+        )
 
         # Test PDF export
-        res = self.client.get("/api/v1/carbon/accounting/reports?report_type=monthly_cost&file_format=pdf", headers=self.esg_headers)
+        res = self.client.get(
+            "/api/v1/carbon/accounting/reports?report_type=monthly_cost&file_format=pdf",
+            headers=self.esg_headers,
+        )
         self.assertEqual(res.status_code, 200)
         self.assertIn("application/pdf", res.headers["content-type"])

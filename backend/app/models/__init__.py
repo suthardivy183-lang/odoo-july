@@ -36,5 +36,3 @@ from app.models.carbon_accounting import (
     DepartmentCarbonBudget,
 )
 from app.models.risk import DepartmentRiskSnapshot, RiskAlert
-
-

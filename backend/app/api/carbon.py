@@ -50,6 +50,7 @@ router = APIRouter(tags=["Carbon"])
 
 # --- PRICING RULES ENDPOINTS ---
 
+
 @router.post("/carbon/pricing-rules", response_model=PricingRuleOut)
 def create_pricing_rule(
     payload: PricingRuleCreate,
@@ -57,9 +58,7 @@ def create_pricing_rule(
     db: Session = Depends(get_db),
 ):
     # Find latest version
-    max_ver = db.execute(
-        select(func.max(CarbonPricingRule.version))
-    ).scalar() or 0
+    max_ver = db.execute(select(func.max(CarbonPricingRule.version))).scalar() or 0
 
     rule = CarbonPricingRule(
         price_per_ton=payload.price_per_ton,
@@ -89,7 +88,9 @@ def create_pricing_rule(
         "CarbonPricingRule",
         rule.id,
         f"Version {rule.version}",
-        after=snapshot(rule, ["price_per_ton", "currency", "pricing_method", "is_active"]),
+        after=snapshot(
+            rule, ["price_per_ton", "currency", "pricing_method", "is_active"]
+        ),
     )
     db.commit()
     db.refresh(rule)
@@ -105,7 +106,7 @@ def list_pricing_rules(
 ):
     offset = (page - 1) * size
     query = select(CarbonPricingRule).order_by(CarbonPricingRule.version.desc())
-    
+
     total = db.execute(select(func.count()).select_from(query.subquery())).scalar_one()
     items = db.execute(query.offset(offset).limit(size)).scalars().all()
 
@@ -116,7 +117,9 @@ def list_pricing_rules(
 def get_active_rule_endpoint(db: Session = Depends(get_db)):
     rule = get_active_pricing_rule(db)
     if rule is None:
-        raise HTTPException(status_code=404, detail="No active carbon pricing rule found")
+        raise HTTPException(
+            status_code=404, detail="No active carbon pricing rule found"
+        )
     return rule
 
 
@@ -131,7 +134,7 @@ def activate_pricing_rule(
         raise HTTPException(status_code=404, detail="Pricing rule not found")
 
     before = snapshot(rule, ["is_active"])
-    
+
     rule.is_active = True
     db.flush()
 
@@ -159,6 +162,7 @@ def activate_pricing_rule(
 
 
 # --- DEPARTMENT BUDGETS ENDPOINTS ---
+
 
 @router.post("/carbon/budgets", response_model=CarbonBudgetOut)
 def create_or_update_budget(
@@ -224,14 +228,17 @@ def create_or_update_budget(
     db.refresh(budget)
 
     # Return with computed values
-    util = get_department_budget_utilization(db, budget.department_id, budget.start_date, budget.end_date)
+    util = get_department_budget_utilization(
+        db, budget.department_id, budget.start_date, budget.end_date
+    )
     out = CarbonBudgetOut.model_validate(budget)
     out.department_name = dept.name
     out.actual_co2e_tons = util["actual_co2e_tons"]
     out.estimated_liability = util["actual_liability"]
     out.budget_utilization_pct = (
         round(out.actual_co2e_tons / out.budgeted_co2e_tons * 100.0, 1)
-        if out.budgeted_co2e_tons > 0 else 0.0
+        if out.budgeted_co2e_tons > 0
+        else 0.0
     )
     return out
 
@@ -250,17 +257,20 @@ def list_budgets(
         query = query.where(DepartmentCarbonBudget.fiscal_year == fiscal_year)
 
     budgets = db.execute(query).scalars().all()
-    
+
     out_items = []
     for b in budgets:
-        util = get_department_budget_utilization(db, b.department_id, b.start_date, b.end_date)
+        util = get_department_budget_utilization(
+            db, b.department_id, b.start_date, b.end_date
+        )
         out = CarbonBudgetOut.model_validate(b)
         out.department_name = b.department.name if b.department else None
         out.actual_co2e_tons = util["actual_co2e_tons"]
         out.estimated_liability = util["actual_liability"]
         out.budget_utilization_pct = (
             round(out.actual_co2e_tons / out.budgeted_co2e_tons * 100.0, 1)
-            if out.budgeted_co2e_tons > 0 else 0.0
+            if out.budgeted_co2e_tons > 0
+            else 0.0
         )
         out_items.append(out)
 
@@ -268,6 +278,7 @@ def list_budgets(
 
 
 # --- MANUAL CARBON TRANSACTIONS ---
+
 
 @router.post("/carbon/transactions", response_model=CarbonTransactionOut)
 def create_carbon_transaction(
@@ -279,7 +290,10 @@ def create_carbon_transaction(
     if dept is None:
         raise HTTPException(status_code=404, detail="Department not found")
     if dept.status != ActiveStatus.active:
-        raise HTTPException(status_code=400, detail="Cannot assign transaction to an inactive department")
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot assign transaction to an inactive department",
+        )
 
     factor = db.get(EmissionFactor, payload.emission_factor_id)
     if factor is None:
@@ -338,9 +352,11 @@ def list_carbon_transactions(
     db: Session = Depends(get_db),
 ):
     offset = (page - 1) * size
-    query = select(CarbonTransaction).options(
-        selectinload(CarbonTransaction.carbon_cost_entry)
-    ).order_by(CarbonTransaction.activity_date.desc(), CarbonTransaction.id.desc())
+    query = (
+        select(CarbonTransaction)
+        .options(selectinload(CarbonTransaction.carbon_cost_entry))
+        .order_by(CarbonTransaction.activity_date.desc(), CarbonTransaction.id.desc())
+    )
 
     if department_id is not None:
         query = query.where(CarbonTransaction.department_id == department_id)
@@ -363,14 +379,20 @@ def list_carbon_transactions(
 
 # --- CARBON ACCOUNTING DASHBOARD ---
 
+
 @router.get("/carbon/accounting/dashboard")
 def get_accounting_dashboard(
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     # Total Liability and Emissions
-    total_emissions_kg = db.execute(select(func.sum(CarbonTransaction.co2e_kg))).scalar() or 0.0
-    total_liability = db.execute(select(func.sum(CarbonCostEntry.financial_liability))).scalar() or 0.0
+    total_emissions_kg = (
+        db.execute(select(func.sum(CarbonTransaction.co2e_kg))).scalar() or 0.0
+    )
+    total_liability = (
+        db.execute(select(func.sum(CarbonCostEntry.financial_liability))).scalar()
+        or 0.0
+    )
 
     # Monthly Trend (Past 6 months)
     today = dt.date.today()
@@ -391,44 +413,62 @@ def get_accounting_dashboard(
         else:
             end_date = dt.date(y, m + 1, 1) - dt.timedelta(days=1)
 
-        m_emissions = db.execute(
-            select(func.sum(CarbonTransaction.co2e_kg)).where(
-                CarbonTransaction.activity_date >= start_date,
-                CarbonTransaction.activity_date <= end_date,
-            )
-        ).scalar() or 0.0
+        m_emissions = (
+            db.execute(
+                select(func.sum(CarbonTransaction.co2e_kg)).where(
+                    CarbonTransaction.activity_date >= start_date,
+                    CarbonTransaction.activity_date <= end_date,
+                )
+            ).scalar()
+            or 0.0
+        )
 
-        m_liability = db.execute(
-            select(func.sum(CarbonCostEntry.financial_liability))
-            .join(CarbonTransaction, CarbonCostEntry.carbon_transaction_id == CarbonTransaction.id)
-            .where(
-                CarbonTransaction.activity_date >= start_date,
-                CarbonTransaction.activity_date <= end_date,
-            )
-        ).scalar() or 0.0
+        m_liability = (
+            db.execute(
+                select(func.sum(CarbonCostEntry.financial_liability))
+                .join(
+                    CarbonTransaction,
+                    CarbonCostEntry.carbon_transaction_id == CarbonTransaction.id,
+                )
+                .where(
+                    CarbonTransaction.activity_date >= start_date,
+                    CarbonTransaction.activity_date <= end_date,
+                )
+            ).scalar()
+            or 0.0
+        )
 
-        trend.append({
-            "month": f"{y:04d}-{m:02d}",
-            "emissions_tons": round(float(m_emissions) / 1000.0, 2),
-            "liability": round(float(m_liability), 2)
-        })
+        trend.append(
+            {
+                "month": f"{y:04d}-{m:02d}",
+                "emissions_tons": round(float(m_emissions) / 1000.0, 2),
+                "liability": round(float(m_liability), 2),
+            }
+        )
 
     # Highest Cost Departments
     depts_data = db.execute(
         select(
             Department.name,
             func.sum(CarbonTransaction.co2e_kg).label("emissions"),
-            func.sum(CarbonCostEntry.financial_liability).label("liability")
+            func.sum(CarbonCostEntry.financial_liability).label("liability"),
         )
         .join(CarbonTransaction, Department.id == CarbonTransaction.department_id)
-        .join(CarbonCostEntry, CarbonTransaction.id == CarbonCostEntry.carbon_transaction_id)
+        .join(
+            CarbonCostEntry,
+            CarbonTransaction.id == CarbonCostEntry.carbon_transaction_id,
+        )
         .group_by(Department.name)
         .order_by(func.sum(CarbonCostEntry.financial_liability).desc())
         .limit(5)
     ).all()
 
     highest_depts = [
-        {"name": name, "emissions_tons": round(float(emissions) / 1000.0, 2), "liability": round(float(liability), 2)}
+        {
+            "name": name,
+            "emissions_tons": round(float(emissions) / 1000.0, 2),
+            "liability": round(float(liability), 2),
+        }
         for name, emissions, liability in depts_data
     ]
 
@@ -437,22 +477,34 @@ def get_accounting_dashboard(
         select(
             EmissionFactor.name,
             func.sum(CarbonTransaction.co2e_kg).label("emissions"),
-            func.sum(CarbonCostEntry.financial_liability).label("liability")
+            func.sum(CarbonCostEntry.financial_liability).label("liability"),
         )
-        .join(CarbonTransaction, EmissionFactor.id == CarbonTransaction.emission_factor_id)
-        .join(CarbonCostEntry, CarbonTransaction.id == CarbonCostEntry.carbon_transaction_id)
+        .join(
+            CarbonTransaction, EmissionFactor.id == CarbonTransaction.emission_factor_id
+        )
+        .join(
+            CarbonCostEntry,
+            CarbonTransaction.id == CarbonCostEntry.carbon_transaction_id,
+        )
         .group_by(EmissionFactor.name)
         .order_by(func.sum(CarbonTransaction.co2e_kg).desc())
         .limit(5)
     ).all()
 
     top_sources = [
-        {"source": name, "emissions_tons": round(float(emissions) / 1000.0, 2), "liability": round(float(liability), 2)}
+        {
+            "source": name,
+            "emissions_tons": round(float(emissions) / 1000.0, 2),
+            "liability": round(float(liability), 2),
+        }
         for name, emissions, liability in sources_data
     ]
 
     # Metrics per employee
-    headcount = db.execute(select(func.count(User.id)).where(User.is_active.is_(True))).scalar() or 1
+    headcount = (
+        db.execute(select(func.count(User.id)).where(User.is_active.is_(True))).scalar()
+        or 1
+    )
     cost_per_employee = float(total_liability) / headcount
 
     # Metrics per product (Mock or aggregated average)
@@ -472,6 +524,7 @@ def get_accounting_dashboard(
 
 # --- SCENARIO SIMULATION ---
 
+
 @router.post("/carbon/accounting/simulate", response_model=SimulationOutput)
 def simulate_accounting_scenarios(
     payload: SimulationInput,
@@ -483,8 +536,9 @@ def simulate_accounting_scenarios(
     one_year_ago = today - dt.timedelta(days=365)
 
     all_txs = db.execute(
-        select(CarbonTransaction.description, CarbonTransaction.co2e_kg)
-        .where(CarbonTransaction.activity_date >= one_year_ago)
+        select(CarbonTransaction.description, CarbonTransaction.co2e_kg).where(
+            CarbonTransaction.activity_date >= one_year_ago
+        )
     ).all()
 
     diesel_baseline = 0.0
@@ -498,7 +552,9 @@ def simulate_accounting_scenarios(
             diesel_baseline += float(co2e)
         elif "fleet" in desc_lower or "road" in desc_lower or "freight" in desc_lower:
             fleet_baseline += float(co2e)
-        elif "electricity" in desc_lower or "grid" in desc_lower or "power" in desc_lower:
+        elif (
+            "electricity" in desc_lower or "grid" in desc_lower or "power" in desc_lower
+        ):
             solar_baseline += float(co2e)
         else:
             other_baseline += float(co2e)
@@ -522,15 +578,23 @@ def simulate_accounting_scenarios(
     price_per_ton = float(rule.price_per_ton) if rule else 3500.0
     financial_savings = total_saved_tons * price_per_ton
 
-    current_liability_kg = db.execute(select(func.sum(CarbonTransaction.co2e_kg))).scalar() or 0.0
-    new_liability = max(0.0, (float(current_liability_kg) - total_saved_kg) / 1000.0 * price_per_ton)
+    current_liability_kg = (
+        db.execute(select(func.sum(CarbonTransaction.co2e_kg))).scalar() or 0.0
+    )
+    new_liability = max(
+        0.0, (float(current_liability_kg) - total_saved_kg) / 1000.0 * price_per_ton
+    )
 
-    reduction_pct = (total_saved_kg / total_baseline * 100.0) if total_baseline > 0 else 0.0
+    reduction_pct = (
+        (total_saved_kg / total_baseline * 100.0) if total_baseline > 0 else 0.0
+    )
 
     # ESG Score Improvement
     # Environmental score is out of 100, which contributes 40% (weight_env) to department score.
     # A 10% reduction in carbon emissions would improve the E score by roughly 10% * 0.5 = 5 points.
-    esg_improvement = (reduction_pct * 0.15)  # E.g. 20% reduction leads to 3 point overall ESG score improvement
+    esg_improvement = (
+        reduction_pct * 0.15
+    )  # E.g. 20% reduction leads to 3 point overall ESG score improvement
 
     return SimulationOutput(
         carbon_reduction_tons=round(total_saved_tons, 2),
@@ -543,19 +607,28 @@ def simulate_accounting_scenarios(
 
 # --- REPORTS GENERATION ---
 
+
 @router.get("/carbon/accounting/reports")
 def export_accounting_reports(
     report_type: str,  # "monthly_cost" | "department_liability" | "budget_utilization"
     file_format: str,  # "pdf" | "excel" | "csv"
     db: Session = Depends(get_db),
 ):
-    if report_type not in ["monthly_cost", "department_liability", "budget_utilization"]:
+    if report_type not in [
+        "monthly_cost",
+        "department_liability",
+        "budget_utilization",
+    ]:
         raise HTTPException(status_code=400, detail="Invalid report type")
     if file_format not in ["pdf", "excel", "csv"]:
         raise HTTPException(status_code=400, detail="Invalid file format")
 
     pricing_rule = get_active_pricing_rule(db)
-    pricing_str = f"Active Carbon Price: {pricing_rule.currency} {pricing_rule.price_per_ton}/Ton" if pricing_rule else "No active pricing rule"
+    pricing_str = (
+        f"Active Carbon Price: {pricing_rule.currency} {pricing_rule.price_per_ton}/Ton"
+        if pricing_rule
+        else "No active pricing rule"
+    )
 
     # Gather Data
     if report_type == "monthly_cost":
@@ -579,27 +652,38 @@ def export_accounting_reports(
             else:
                 end_date = dt.date(y, m + 1, 1) - dt.timedelta(days=1)
 
-            m_emissions = db.execute(
-                select(func.sum(CarbonTransaction.co2e_kg)).where(
-                    CarbonTransaction.activity_date >= start_date,
-                    CarbonTransaction.activity_date <= end_date,
-                )
-            ).scalar() or 0.0
+            m_emissions = (
+                db.execute(
+                    select(func.sum(CarbonTransaction.co2e_kg)).where(
+                        CarbonTransaction.activity_date >= start_date,
+                        CarbonTransaction.activity_date <= end_date,
+                    )
+                ).scalar()
+                or 0.0
+            )
 
-            m_liability = db.execute(
-                select(func.sum(CarbonCostEntry.financial_liability))
-                .join(CarbonTransaction, CarbonCostEntry.carbon_transaction_id == CarbonTransaction.id)
-                .where(
-                    CarbonTransaction.activity_date >= start_date,
-                    CarbonTransaction.activity_date <= end_date,
-                )
-            ).scalar() or 0.0
+            m_liability = (
+                db.execute(
+                    select(func.sum(CarbonCostEntry.financial_liability))
+                    .join(
+                        CarbonTransaction,
+                        CarbonCostEntry.carbon_transaction_id == CarbonTransaction.id,
+                    )
+                    .where(
+                        CarbonTransaction.activity_date >= start_date,
+                        CarbonTransaction.activity_date <= end_date,
+                    )
+                ).scalar()
+                or 0.0
+            )
 
-            rows.append([
-                f"{y:04d}-{m:02d}",
-                round(float(m_emissions) / 1000.0, 2),
-                round(float(m_liability), 2)
-            ])
+            rows.append(
+                [
+                    f"{y:04d}-{m:02d}",
+                    round(float(m_emissions) / 1000.0, 2),
+                    round(float(m_liability), 2),
+                ]
+            )
         title = "Monthly Carbon Cost Report"
 
     elif report_type == "department_liability":
@@ -608,10 +692,13 @@ def export_accounting_reports(
             select(
                 Department.name,
                 func.sum(CarbonTransaction.co2e_kg).label("emissions"),
-                func.sum(CarbonCostEntry.financial_liability).label("liability")
+                func.sum(CarbonCostEntry.financial_liability).label("liability"),
             )
             .join(CarbonTransaction, Department.id == CarbonTransaction.department_id)
-            .join(CarbonCostEntry, CarbonTransaction.id == CarbonCostEntry.carbon_transaction_id)
+            .join(
+                CarbonCostEntry,
+                CarbonTransaction.id == CarbonCostEntry.carbon_transaction_id,
+            )
             .group_by(Department.name)
             .order_by(func.sum(CarbonCostEntry.financial_liability).desc())
         ).all()
@@ -623,23 +710,38 @@ def export_accounting_reports(
         title = "Department Carbon Liability Report"
 
     else:  # budget_utilization
-        headers = ["Department", "Fiscal Year", "Budget (Tons)", "Actual (Tons)", "Util %", "Liability"]
+        headers = [
+            "Department",
+            "Fiscal Year",
+            "Budget (Tons)",
+            "Actual (Tons)",
+            "Util %",
+            "Liability",
+        ]
         budgets = db.execute(select(DepartmentCarbonBudget)).scalars().all()
-        
+
         rows = []
         for b in budgets:
-            util = get_department_budget_utilization(db, b.department_id, b.start_date, b.end_date)
+            util = get_department_budget_utilization(
+                db, b.department_id, b.start_date, b.end_date
+            )
             act_tons = util["actual_co2e_tons"]
-            util_pct = round(act_tons / b.budgeted_co2e_tons * 100.0, 1) if b.budgeted_co2e_tons > 0 else 0.0
-            
-            rows.append([
-                b.department.name if b.department else "Unknown",
-                b.fiscal_year,
-                b.budgeted_co2e_tons,
-                round(act_tons, 2),
-                util_pct,
-                round(util["actual_liability"], 2)
-            ])
+            util_pct = (
+                round(act_tons / b.budgeted_co2e_tons * 100.0, 1)
+                if b.budgeted_co2e_tons > 0
+                else 0.0
+            )
+
+            rows.append(
+                [
+                    b.department.name if b.department else "Unknown",
+                    b.fiscal_year,
+                    b.budgeted_co2e_tons,
+                    round(act_tons, 2),
+                    util_pct,
+                    round(util["actual_liability"], 2),
+                ]
+            )
         title = "Carbon Budget Utilization Report"
 
     # Render format
@@ -651,16 +753,18 @@ def export_accounting_reports(
         writer.writerow([])
         writer.writerow(headers)
         writer.writerows(rows)
-        
+
         response = Response(content=output.getvalue(), media_type="text/csv")
-        response.headers["Content-Disposition"] = f"attachment; filename={report_type}.csv"
+        response.headers["Content-Disposition"] = (
+            f"attachment; filename={report_type}.csv"
+        )
         return response
 
     elif file_format == "excel":
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Report"
-        
+
         ws.append([title])
         ws.append([pricing_str])
         ws.append([])
@@ -671,19 +775,21 @@ def export_accounting_reports(
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
-        
+
         response = StreamingResponse(
-            output, 
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        response.headers["Content-Disposition"] = f"attachment; filename={report_type}.xlsx"
+        response.headers["Content-Disposition"] = (
+            f"attachment; filename={report_type}.xlsx"
+        )
         return response
 
     else:  # pdf
         pdf_buffer = io.BytesIO()
         doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
         styles = getSampleStyleSheet()
-        
+
         # Define styles
         title_style = ParagraphStyle(
             name="ReportTitle",
@@ -699,32 +805,38 @@ def export_accounting_reports(
             textColor=colors.HexColor("#495057"),
             spaceAfter=30,
         )
-        
+
         elements = [
             Paragraph(title, title_style),
             Paragraph(pricing_str, meta_style),
             Spacer(1, 15),
         ]
-        
+
         # Add table
         table_data = [headers] + rows
         t = Table(table_data)
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1b4332")),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 11),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor("#dee2e6")),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ]))
+        t.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1b4332")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 11),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+                    ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
+                    ("GRID", (0, 0), (-1, -1), 1, colors.HexColor("#dee2e6")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
         elements.append(t)
         doc.build(elements)
-        
+
         pdf_buffer.seek(0)
         response = StreamingResponse(pdf_buffer, media_type="application/pdf")
-        response.headers["Content-Disposition"] = f"attachment; filename={report_type}.pdf"
+        response.headers["Content-Disposition"] = (
+            f"attachment; filename={report_type}.pdf"
+        )
         return response

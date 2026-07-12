@@ -16,6 +16,7 @@ router = APIRouter(tags=["Emission Factors"])
 
 # --- SCHEMAS ---
 
+
 class EmissionFactorOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,16 +32,21 @@ class EmissionFactorOut(BaseModel):
 
 # --- ENDPOINTS ---
 
+
 @router.get("/emission-factors", response_model=Page[EmissionFactorOut])
 def list_emission_factors(
     page: int = 1,
     size: int = Query(20, le=100),
     source_type: ERPType | None = None,
-    current: User = Depends(get_current_user),  # Wait, User is not imported, let's import it or just omit type hint
+    current: User = Depends(
+        get_current_user
+    ),  # Wait, User is not imported, let's import it or just omit type hint
     db: Session = Depends(get_db),
 ):
     offset = (page - 1) * size
-    query = select(EmissionFactor).order_by(EmissionFactor.name.asc(), EmissionFactor.version.desc())
+    query = select(EmissionFactor).order_by(
+        EmissionFactor.name.asc(), EmissionFactor.version.desc()
+    )
 
     if source_type is not None:
         query = query.where(EmissionFactor.source_type == source_type)

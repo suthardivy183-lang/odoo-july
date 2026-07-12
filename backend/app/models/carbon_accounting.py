@@ -53,7 +53,9 @@ class CarbonCostEntry(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    carbon_transaction = relationship("CarbonTransaction", back_populates="carbon_cost_entry")
+    carbon_transaction = relationship(
+        "CarbonTransaction", back_populates="carbon_cost_entry"
+    )
     pricing_rule = relationship("CarbonPricingRule")
 
 
@@ -64,7 +66,9 @@ class DepartmentCarbonBudget(TimestampMixin, Base):
     department_id: Mapped[int] = mapped_column(ForeignKey("departments.id"), index=True)
     fiscal_year: Mapped[str] = mapped_column(String(9))  # e.g., "2026-2027"
     period_type: Mapped[str] = mapped_column(String(10))  # "annual" or "quarterly"
-    period_value: Mapped[str | None] = mapped_column(String(10), nullable=True)  # e.g., "Q1"
+    period_value: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # e.g., "Q1"
     budgeted_co2e_tons: Mapped[float] = mapped_column(Numeric(14, 2))
     start_date: Mapped[dt.date] = mapped_column(Date)
     end_date: Mapped[dt.date] = mapped_column(Date)

@@ -1,4 +1,4 @@
-import { Coins, ShieldAlert } from "lucide-react";
+import { Coins, Orbit, ShieldAlert } from "lucide-react";
 
 import type { NavItem } from "@/app/nav-types";
 
@@ -8,6 +8,13 @@ import type { NavItem } from "@/app/nav-types";
  * edits this file (see TEAM_PLAN.md).
  */
 export const navTrackA: NavItem[] = [
+  {
+    to: "/digital-twin",
+    label: "ESG Digital Twin",
+    icon: Orbit,
+    group: "Decision Lab",
+    roles: ["esg_manager"],
+  },
   {
     to: "/carbon-accounting",
     label: "Carbon Cost Accounting",
@@ -23,4 +30,3 @@ export const navTrackA: NavItem[] = [
     roles: ["admin", "esg_manager", "dept_head"],
   },
 ];
-

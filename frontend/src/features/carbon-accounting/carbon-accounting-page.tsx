@@ -595,7 +595,7 @@ export function CarbonAccountingPage() {
             <CardContent className="space-y-6 max-w-md">
               <div className="space-y-2">
                 <Label>Select Report Type</Label>
-                <Select value={reportType} onValueChange={setReportType}>
+                <Select value={reportType} onChange={(e) => setReportType(e.target.value)}>
                   <option value="monthly_cost">Monthly Carbon Cost Report</option>
                   <option value="department_liability">Department Carbon Liability Report</option>
                   <option value="budget_utilization">Carbon Budget Utilization Report</option>
@@ -604,7 +604,7 @@ export function CarbonAccountingPage() {
 
               <div className="space-y-2">
                 <Label>Select Export Format</Label>
-                <Select value={reportFormat} onValueChange={setReportFormat}>
+                <Select value={reportFormat} onChange={(e) => setReportFormat(e.target.value)}>
                   <option value="pdf">Adobe PDF (.pdf)</option>
                   <option value="excel">Microsoft Excel (.xlsx)</option>
                   <option value="csv">Comma Separated Values (.csv)</option>
@@ -651,7 +651,7 @@ export function CarbonAccountingPage() {
 
             <div className="space-y-2">
               <Label>Pricing Method</Label>
-              <Select value={pricingMethod} onValueChange={setPricingMethod}>
+              <Select value={pricingMethod} onChange={(e) => setPricingMethod(e.target.value)}>
                 <option value="fixed_internal">Fixed Internal Price</option>
                 <option value="govt_tax">Government Carbon Tax</option>
                 <option value="market_credit">Market Carbon Credit Price</option>
@@ -678,7 +678,7 @@ export function CarbonAccountingPage() {
           <form onSubmit={handleCreateBudget} className="space-y-4 pt-2">
             <div className="space-y-2">
               <Label>Select Department</Label>
-              <Select value={budgetDept} onValueChange={setBudgetDept} required>
+              <Select value={budgetDept} onChange={(e) => setBudgetDept(e.target.value)} required>
                 <option value="">-- Choose Department --</option>
                 {departments?.items?.map((d: any) => (
                   <option key={d.id} value={d.id}>
@@ -701,7 +701,7 @@ export function CarbonAccountingPage() {
 
               <div className="space-y-2">
                 <Label>Budget Type</Label>
-                <Select value={budgetPeriodType} onValueChange={setBudgetPeriodType}>
+                <Select value={budgetPeriodType} onChange={(e) => setBudgetPeriodType(e.target.value)}>
                   <option value="annual">Annual</option>
                   <option value="quarterly">Quarterly</option>
                 </Select>
@@ -711,7 +711,7 @@ export function CarbonAccountingPage() {
             {budgetPeriodType === "quarterly" && (
               <div className="space-y-2">
                 <Label>Select Quarter</Label>
-                <Select value={budgetPeriodValue} onValueChange={setBudgetPeriodValue} required>
+                <Select value={budgetPeriodValue} onChange={(e) => setBudgetPeriodValue(e.target.value)} required>
                   <option value="">-- Choose Quarter --</option>
                   <option value="Q1">Q1 (Apr - Jun)</option>
                   <option value="Q2">Q2 (Jul - Sep)</option>

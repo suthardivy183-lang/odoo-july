@@ -20,6 +20,7 @@ router = APIRouter(tags=["ERP"])
 
 # --- SCHEMAS ---
 
+
 class ERPOperationLineCreate(BaseModel):
     resource: str = Field(..., max_length=120)
     quantity: float = Field(..., gt=0)
@@ -62,6 +63,7 @@ class ERPOperationOut(BaseModel):
 
 # --- ENDPOINTS ---
 
+
 @router.post("/erp/operations", response_model=ERPOperationOut)
 def create_erp_operation(
     payload: ERPOperationCreate,
@@ -72,14 +74,18 @@ def create_erp_operation(
     if dept is None:
         raise HTTPException(status_code=404, detail="Department not found")
     if dept.status != ActiveStatus.active:
-        raise HTTPException(status_code=400, detail="Cannot assign operation to an inactive department")
+        raise HTTPException(
+            status_code=400, detail="Cannot assign operation to an inactive department"
+        )
 
     # Check reference number uniqueness
     existing_ref = db.execute(
         select(ERPOperation).where(ERPOperation.reference_no == payload.reference_no)
     ).scalar_one_or_none()
     if existing_ref:
-        raise HTTPException(status_code=409, detail="Operation reference number already exists")
+        raise HTTPException(
+            status_code=409, detail="Operation reference number already exists"
+        )
 
     op = ERPOperation(
         op_type=payload.op_type,
@@ -108,20 +114,26 @@ def create_erp_operation(
         if settings.auto_emission_calc:
             # Find emission factor
             factor = db.execute(
-                select(EmissionFactor).where(
+                select(EmissionFactor)
+                .where(
                     EmissionFactor.status == ActiveStatus.active,
                     EmissionFactor.source_type == payload.op_type,
-                    func.lower(EmissionFactor.name).like(f"%{line_data.resource.lower()}%")
-                ).limit(1)
+                    func.lower(EmissionFactor.name).like(
+                        f"%{line_data.resource.lower()}%"
+                    ),
+                )
+                .limit(1)
             ).scalar_one_or_none()
 
             # Fallback to any active factor for the source type if name match fails
             if not factor:
                 factor = db.execute(
-                    select(EmissionFactor).where(
+                    select(EmissionFactor)
+                    .where(
                         EmissionFactor.status == ActiveStatus.active,
-                        EmissionFactor.source_type == payload.op_type
-                    ).limit(1)
+                        EmissionFactor.source_type == payload.op_type,
+                    )
+                    .limit(1)
                 ).scalar_one_or_none()
 
             if factor:
@@ -175,9 +187,11 @@ def list_erp_operations(
     db: Session = Depends(get_db),
 ):
     offset = (page - 1) * size
-    query = select(ERPOperation).options(
-        selectinload(ERPOperation.lines)
-    ).order_by(ERPOperation.op_date.desc(), ERPOperation.id.desc())
+    query = (
+        select(ERPOperation)
+        .options(selectinload(ERPOperation.lines))
+        .order_by(ERPOperation.op_date.desc(), ERPOperation.id.desc())
+    )
 
     if department_id is not None:
         query = query.where(ERPOperation.department_id == department_id)
