@@ -28,6 +28,7 @@ from app.models.social import CSRParticipation
 from app.models.carbon_accounting import DepartmentCarbonBudget
 from app.models.risk import DepartmentRiskSnapshot, RiskAlert
 from app.services.notify import notify
+from app.services.events import emit
 from app.utils.time import today_ist, now_utc
 
 
@@ -305,7 +306,8 @@ def calculate_governance_points(db: Session, department_id: int, today: dt.date)
 
 
 def recalculate_department_risk(
-    db: Session, department_id: int, snapshot_date: dt.date | None = None
+    db: Session, department_id: int, snapshot_date: dt.date | None = None,
+    *, actor_id: int | None = None,
 ) -> DepartmentRiskSnapshot:
     """Evaluate and store risk snapshot for a department."""
     if snapshot_date is None:
@@ -354,7 +356,24 @@ def recalculate_department_risk(
     prev = get_previous_risk_snapshot(db, department_id, snapshot_date)
     check_and_trigger_alerts(db, department_id, prev, snapshot)
 
+    emit(
+        db,
+        "risk.snapshot.updated",
+        department_id=department_id,
+        entity_type="department_risk_snapshot",
+        entity_id=snapshot.id,
+        actor_id=actor_id,
+        payload={"risk_score": float(snapshot.overall_risk)},
+    )
+
     return snapshot
+
+
+def recalculate_all_departments(db: Session, *, actor_id: int | None = None) -> int:
+    department_ids = list(db.scalars(select(Department.id)).all())
+    for department_id in department_ids:
+        recalculate_department_risk(db, department_id, actor_id=actor_id)
+    return len(department_ids)
 
 
 def check_and_trigger_alerts(
@@ -390,6 +409,14 @@ def check_and_trigger_alerts(
         )
         db.add(alert)
         db.flush()
+        emit(
+            db,
+            "risk.alert.raised",
+            department_id=department_id,
+            entity_type="risk_alert",
+            entity_id=alert.id,
+            payload={"alert_type": alert_type, "risk_score": float(current.overall_risk)},
+        )
 
         # Retrieve ESG Managers + Department Head
         recipients = db.execute(

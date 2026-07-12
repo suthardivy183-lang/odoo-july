@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import app.models  # noqa: F401  (register all tables on Base.metadata)
+import app.services.handlers  # noqa: F401  (register domain event handlers)
 from app.api import (
     audit_logs,
     audits,
@@ -19,6 +20,7 @@ from app.api import (
     departments,
     emission_factors,
     erp,
+    events,
     files,
     gamification,
     goals,
@@ -40,6 +42,8 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    import app.services.handlers  # noqa: F401  (register domain event handlers)
+
     Base.metadata.create_all(bind=engine)
     settings.upload_path  # ensure uploads dir exists
     db = SessionLocal()
@@ -90,6 +94,7 @@ ROUTERS = [
     products.router,
     goals.router,
     erp.router,
+    events.router,
     carbon.router,
     csr.router,
     challenges.router,

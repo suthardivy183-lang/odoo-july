@@ -99,7 +99,7 @@ class EventSpineApiTestCase(unittest.TestCase):
                     department_id=dept.id,
                     fiscal_year="2026-2027",
                     period_type="annual",
-                    budgeted_co2e_tons=0.001,
+                    budgeted_co2e_tons=0.01,
                     start_date=dt.date(2026, 4, 1),
                     end_date=dt.date(2027, 3, 31),
                     created_by=manager.id,

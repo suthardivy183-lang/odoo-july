@@ -37,6 +37,7 @@ from app.services.carbon_accounting import (
     get_active_pricing_rule,
     get_department_budget_utilization,
 )
+from app.services.events import emit
 
 # PDF and Excel imports
 from reportlab.lib.pagesizes import letter
@@ -331,6 +332,18 @@ def create_carbon_transaction(
         tx.id,
         tx.description,
         after=snapshot(tx, ["co2e_kg", "scope", "quantity"]),
+    )
+    emit(
+        db,
+        "carbon.txn.created",
+        department_id=tx.department_id,
+        entity_type="carbon_transaction",
+        entity_id=tx.id,
+        actor_id=current.id,
+        payload={
+            "co2e_kg": float(tx.co2e_kg),
+            "activity_date": tx.activity_date.isoformat(),
+        },
     )
 
     db.commit()
