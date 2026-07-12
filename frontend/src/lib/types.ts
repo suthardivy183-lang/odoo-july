@@ -234,3 +234,44 @@ export interface HeadDashboardOut {
   top_performers: { user: UserBrief; department_name: string | null; xp_balance: number }[];
   as_of: string;
 }
+
+export interface DigitalTwinScenario {
+  current_esg_score: number;
+  fleet_electrification_pct: number;
+  remote_employee_pct: number;
+  remote_days_per_week: number;
+  supplier_switch_pct: number;
+  supplier_emissions_improvement_pct: number;
+  supplier_from: string;
+  supplier_to: string;
+  period: "month" | "quarter" | "fy" | "all";
+}
+
+export interface DigitalTwinResult {
+  data_source: "live_ledger" | "planning_baseline" | "demo_baseline";
+  period_start: string;
+  period_end: string;
+  current_esg_score: number;
+  scenario_esg_score: number;
+  score_uplift: number;
+  current_carbon_kg: number;
+  scenario_carbon_kg: number;
+  carbon_reduction_kg: number;
+  carbon_reduction_pct: number;
+  annual_savings_inr: number;
+  annual_savings_lakh: number;
+  breakdown: {
+    key: "fleet" | "remote" | "supplier";
+    label: string;
+    baseline_carbon_kg: number;
+    reduction_kg: number;
+    reduction_pct_of_total: number;
+    assumption: string;
+  }[];
+  projection: {
+    year: string;
+    current_carbon_kg: number;
+    scenario_carbon_kg: number;
+  }[];
+  methodology: string[];
+}

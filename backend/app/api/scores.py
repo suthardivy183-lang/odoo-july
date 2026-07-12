@@ -137,8 +137,16 @@ def simulate_digital_twin(
         payload.period, payload.date_from, payload.date_to
     )
     ledger, has_live_data = _ledger_by_scope(db, start_date, end_date)
+    live_total = sum(ledger.values())
+    use_live_baseline = has_live_data and live_total >= DEMO_CARBON_KG
+    if use_live_baseline:
+        data_source = "live_ledger"
+    elif has_live_data:
+        data_source = "planning_baseline"
+    else:
+        data_source = "demo_baseline"
     current_carbon, fleet_baseline, commute_baseline, supplier_baseline = (
-        _baseline_by_scope(ledger, has_live_data)
+        _baseline_by_scope(ledger, use_live_baseline)
     )
     breakdown, reduction = _simulate(
         payload,
@@ -168,7 +176,7 @@ def simulate_digital_twin(
         )
     ]
     return DigitalTwinScenarioOut(
-        data_source="live_ledger" if has_live_data else "demo_baseline",
+        data_source=data_source,
         period_start=start_date,
         period_end=end_date,
         current_esg_score=_round(payload.current_esg_score),
@@ -183,6 +191,15 @@ def simulate_digital_twin(
         breakdown=breakdown,
         projection=projection,
         methodology=[
+            (
+                "The current ledger is below the 1,000-tonne annual completeness threshold, so this run uses the disclosed annual planning baseline."
+                if data_source == "planning_baseline"
+                else (
+                    "The scenario baseline is calculated from the selected-period carbon ledger."
+                    if data_source == "live_ledger"
+                    else "No ledger data was available, so this run uses the disclosed 1,000-tonne demo baseline."
+                )
+            ),
             "Fleet baseline uses Scope 1 ledger emissions; EVs avoid 90% of modeled tailpipe emissions.",
             "Scope 3 is split into a 25% commuting pool and 75% supplier pool for scenario modeling.",
             "Estimated annual savings use ₹18 per kgCO₂e avoided; validate with Finance before investment approval.",
