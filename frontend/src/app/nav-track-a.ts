@@ -1,4 +1,4 @@
-import { Coins } from "lucide-react";
+import { Coins, ShieldAlert } from "lucide-react";
 
 import type { NavItem } from "@/app/nav-types";
 
@@ -12,6 +12,13 @@ export const navTrackA: NavItem[] = [
     to: "/carbon-accounting",
     label: "Carbon Cost Accounting",
     icon: Coins,
+    group: "Overview",
+    roles: ["admin", "esg_manager", "dept_head"],
+  },
+  {
+    to: "/risk-heatmap",
+    label: "ESG Risk Heatmap",
+    icon: ShieldAlert,
     group: "Overview",
     roles: ["admin", "esg_manager", "dept_head"],
   },

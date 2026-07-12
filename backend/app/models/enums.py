@@ -176,3 +176,5 @@ class NotificationType(str, enum.Enum):
     policy_published = "policy_published"
     policy_reminder = "policy_reminder"
     badge_unlocked = "badge_unlocked"
+    risk_alert = "risk_alert"
+

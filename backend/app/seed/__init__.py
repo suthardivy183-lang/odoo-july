@@ -39,6 +39,8 @@ from app.models.enums import (
 from app.models.environment import CarbonTransaction, ERPOperation, ERPOperationLine
 from app.models.carbon_accounting import PricingMethod, CarbonPricingRule, DepartmentCarbonBudget
 from app.services.carbon_accounting import calculate_and_create_carbon_cost
+from app.services.risk_engine import recalculate_department_risk
+
 from app.models.gamification import Challenge, ChallengeParticipation, XPTransaction
 from app.models.governance import Audit, ComplianceIssue
 
@@ -641,6 +643,56 @@ def seed_carbon_accounting(db: Session, depts: dict, admin_user: User) -> None:
     db.flush()
 
 
+def seed_risk_heatmap(db: Session, depts: dict) -> None:
+    # Seed historical snapshots for past 6 months
+    today = today_ist()
+    months = []
+    year, month = today.year, today.month
+    for _ in range(6):
+        month -= 1
+        if month == 0:
+            year, month = year - 1, 12
+        months.append((year, month))
+    months.reverse()
+
+    from app.models.risk import DepartmentRiskSnapshot
+
+    for y, m in months:
+        snapshot_date = dt.date(y, m, 28)  # End of month snapshot
+        for name, dept in depts.items():
+            # Generate deterministic mock values based on department name hash to look natural
+            h = hash(name + str(m))
+            env_val = 15.0 + (h % 30)
+            soc_val = 20.0 + ((h >> 2) % 30)
+            gov_val = 10.0 + ((h >> 4) % 30)
+
+            # Make Manufacturing risk look higher historically
+            if "Manufacturing" in name:
+                env_val += 25.0
+                gov_val += 15.0
+            elif "Operations" in name:
+                env_val += 15.0
+
+            overall = (0.4 * env_val) + (0.3 * soc_val) + (0.3 * gov_val)
+
+            snapshot = DepartmentRiskSnapshot(
+                department_id=dept.id,
+                snapshot_date=snapshot_date,
+                environmental_risk=env_val,
+                social_risk=soc_val,
+                governance_risk=gov_val,
+                overall_risk=overall,
+            )
+            db.add(snapshot)
+    db.flush()
+
+    # Recalculate today's risk score for all departments
+    for dept in depts.values():
+        recalculate_department_risk(db, dept.id, today)
+    db.flush()
+
+
+
 def run() -> None:
     print("EcoSphere seed: wiping schema...")
     Base.metadata.drop_all(bind=engine)
@@ -667,7 +719,9 @@ def run() -> None:
         seed_governance(db, depts, demo)
         spread_xp_dates(db)
         seed_carbon_accounting(db, depts, demo["admin"])
+        seed_risk_heatmap(db, depts)
         db.commit()
+
 
         print("Seed complete.\n")
         print("Demo accounts (password for all: %s)" % data.DEMO_PASSWORD)

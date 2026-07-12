@@ -1,6 +1,7 @@
 import type { RouteObject } from "react-router-dom";
 
 import { CarbonAccountingPage } from "@/features/carbon-accounting/carbon-accounting-page";
+import { RiskHeatmapPage } from "@/features/risk-heatmap/risk-heatmap-page";
 
 /**
  * Track A routes — master data, environmental, governance, scoring, reports,
@@ -9,5 +10,6 @@ import { CarbonAccountingPage } from "@/features/carbon-accounting/carbon-accoun
  */
 export const routesTrackA: RouteObject[] = [
   { path: "carbon-accounting", element: <CarbonAccountingPage /> },
+  { path: "risk-heatmap", element: <RiskHeatmapPage /> },
 ];
 
