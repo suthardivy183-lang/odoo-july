@@ -33,6 +33,7 @@ from app.services.notify import notify
 from app.services.org import can_decide_for, managed_dept_ids
 from app.services.org_settings import get_org_settings
 from app.services.xp import award_once_for_challenge
+from app.services.events import emit
 from app.utils.time import now_utc
 
 router = APIRouter(tags=["Challenges"])
@@ -418,6 +419,15 @@ def decide_participation(
 
     if payload.decision == "approve":
         award_once_for_challenge(db, part.id, current.id)
+        emit(
+            db,
+            "participation.approved",
+            department_id=part.user.department_id,
+            entity_type="challenge_participation",
+            entity_id=part.id,
+            actor_id=current.id,
+            payload={"participation_type": "challenge", "user_id": part.user_id},
+        )
         evaluate_user_badges(db, part.user)
     notify(
         db, part.user, NotificationType.challenge_decision, title,

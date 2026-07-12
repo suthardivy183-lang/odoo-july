@@ -1,5 +1,5 @@
 import datetime as dt
-from sqlalchemy import Date, DateTime, ForeignKey, Float, String, Text, func
+from sqlalchemy import Date, DateTime, ForeignKey, Float, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -7,6 +7,9 @@ from app.db.session import Base
 
 class DepartmentRiskSnapshot(Base):
     __tablename__ = "department_risk_snapshots"
+    __table_args__ = (
+        UniqueConstraint("department_id", "snapshot_date", name="uq_department_risk_snapshot_day"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     department_id: Mapped[int] = mapped_column(ForeignKey("departments.id"), index=True)
@@ -32,4 +35,3 @@ class RiskAlert(Base):
     )
 
     department = relationship("Department")
-

@@ -25,6 +25,7 @@ from app.services.risk_engine import (
     recalculate_department_risk,
     get_previous_risk_snapshot,
 )
+from app.services.events import emit
 from app.utils.time import now_utc, today_ist
 
 router = APIRouter(tags=["Compliance"])
@@ -64,9 +65,10 @@ def create_compliance_issue(
     refresh_overdue_flag(issue)
     db.flush()
 
-    # Recalculate Risk Heatmap for this department instantly!
-    recalculate_department_risk(db, issue.department_id)
-    db.flush()
+    emit(
+        db, "compliance.issue.created", department_id=issue.department_id,
+        entity_type="compliance_issue", entity_id=issue.id, actor_id=current.id,
+    )
 
     # Send Notification: compliance_new
     recipients = [owner]
@@ -219,9 +221,11 @@ def update_compliance_issue(
     refresh_overdue_flag(issue)
     db.flush()
 
-    # Recalculate Risk Heatmap for this department instantly!
-    recalculate_department_risk(db, issue.department_id)
-    db.flush()
+    emit(
+        db, "compliance.issue.status_changed", department_id=issue.department_id,
+        entity_type="compliance_issue", entity_id=issue.id, actor_id=current.id,
+        payload={"status": issue.status.value},
+    )
 
     log_action(
         db,
@@ -250,12 +254,7 @@ def get_risk_heatmap(
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Recalculate risk for all departments to make sure it's up to date
-    depts = db.execute(select(Department).where(Department.status == ActiveStatus.active)).scalars().all()
     today = today_ist()
-    for d in depts:
-        recalculate_department_risk(db, d.id, today)
-    db.commit()
 
     # Get latest snapshots
     query = select(DepartmentRiskSnapshot).where(DepartmentRiskSnapshot.snapshot_date == today)
@@ -268,6 +267,17 @@ def get_risk_heatmap(
         out_items.append(out)
 
     return out_items
+
+
+@router.post("/risk-heatmap/recalculate")
+def recalculate_risk_heatmap(
+    current: User = Depends(require_esg), db: Session = Depends(get_db)
+):
+    from app.services.risk_engine import recalculate_all_departments
+
+    count = recalculate_all_departments(db, actor_id=current.id)
+    db.commit()
+    return {"recalculated": count}
 
 
 @router.get("/risk-heatmap/drilldown/{department_id}", response_model=DrillDownOut)

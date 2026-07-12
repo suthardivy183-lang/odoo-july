@@ -35,5 +35,6 @@ from app.models.carbon_accounting import (
     CarbonCostEntry,
     DepartmentCarbonBudget,
 )
+from app.models.events import DomainEvent
 from app.models.risk import DepartmentRiskSnapshot, RiskAlert
 from app.models.scores import DepartmentScoreSnapshot, OrgScoreSnapshot

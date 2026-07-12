@@ -14,6 +14,7 @@ from app.schemas.common import Msg, Page
 from app.services.audit import log_action, snapshot
 from app.services.carbon_accounting import calculate_and_create_carbon_cost
 from app.services.org_settings import get_org_settings
+from app.services.events import emit
 
 router = APIRouter(tags=["ERP"])
 
@@ -159,6 +160,18 @@ def create_erp_operation(
                 # Trigger cost calculation
                 calculate_and_create_carbon_cost(db, tx)
                 db.flush()
+                emit(
+                    db,
+                    "carbon.txn.created",
+                    department_id=tx.department_id,
+                    entity_type="carbon_transaction",
+                    entity_id=tx.id,
+                    actor_id=current.id,
+                    payload={
+                        "co2e_kg": float(tx.co2e_kg),
+                        "activity_date": tx.activity_date.isoformat(),
+                    },
+                )
 
     log_action(
         db,
@@ -168,6 +181,15 @@ def create_erp_operation(
         op.id,
         op.reference_no,
         after=snapshot(op, ["reference_no", "amount_inr", "op_type"]),
+    )
+    emit(
+        db,
+        "erp.operation.created",
+        department_id=op.department_id,
+        entity_type="erp_operation",
+        entity_id=op.id,
+        actor_id=current.id,
+        payload={"reference_no": op.reference_no, "op_type": op.op_type.value},
     )
 
     db.commit()
