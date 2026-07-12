@@ -192,6 +192,12 @@ class RiskHeatmapApiTestCase(unittest.TestCase):
             db.add_all([snap1, snap2])
             db.commit()
 
+        # Refresh snapshots explicitly; GET endpoints are pure reads.
+        recalc = self.client.post(
+            "/api/v1/risk-heatmap/recalculate", headers=self.esg_headers
+        )
+        self.assertEqual(recalc.status_code, 200)
+
         # Fetch heatmap
         res = self.client.get("/api/v1/risk-heatmap", headers=self.esg_headers)
         self.assertEqual(res.status_code, 200)

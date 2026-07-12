@@ -140,8 +140,9 @@ def calculate_environmental_points(db: Session, department_id: int, today: dt.da
         ).scalar() or 0.0
         act_tons = float(act_emissions) / 1000.0
         
-        if act_tons > budget.budgeted_co2e_tons:
-            overrun_pct = ((act_tons - budget.budgeted_co2e_tons) / budget.budgeted_co2e_tons) * 100.0
+        budget_tons = float(budget.budgeted_co2e_tons)
+        if budget_tons > 0 and act_tons > budget_tons:
+            overrun_pct = ((act_tons - budget_tons) / budget_tons) * 100.0
             if overrun_pct > 10.0:
                 budget_points = 20.0
             else:
@@ -535,8 +536,9 @@ def generate_risk_insights(db: Session, department_id: int) -> dict:
             )
         ).scalar() or 0.0
         act_tons = float(act_emissions) / 1000.0
-        if act_tons > budget.budgeted_co2e_tons:
-            overrun_pct = ((act_tons - budget.budgeted_co2e_tons) / budget.budgeted_co2e_tons) * 100.0
+        budget_tons = float(budget.budgeted_co2e_tons)
+        if budget_tons > 0 and act_tons > budget_tons:
+            overrun_pct = ((act_tons - budget_tons) / budget_tons) * 100.0
             contributors.append(f"Emissions exceed department carbon budget by {overrun_pct:.1f}%.")
             recommendations.append("Implement carbon reduction measures to align with department budget.")
 
