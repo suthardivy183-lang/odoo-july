@@ -132,7 +132,9 @@ class DigitalTwinApiTestCase(unittest.TestCase):
         self.assertAlmostEqual(body["carbon_reduction_pct"], 17.4)
         self.assertAlmostEqual(body["scenario_esg_score"], 80.7)
         self.assertAlmostEqual(body["annual_savings_inr"], 3_132_000)
-        self.assertEqual([item["key"] for item in body["breakdown"]], ["fleet", "remote", "supplier"])
+        self.assertEqual(
+            [item["key"] for item in body["breakdown"]], ["fleet", "remote", "supplier"]
+        )
         self.assertEqual(body["projection"][-1]["scenario_carbon_kg"], 826_000)
 
     def test_no_ledger_uses_disclosed_demo_baseline(self):
